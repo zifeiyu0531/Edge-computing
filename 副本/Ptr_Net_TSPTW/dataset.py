@@ -49,7 +49,7 @@ class DataGenerator(object):
         theta_b = B / Bs
         theta_m = M / Ms
         task_priority = np.random.randint(5, size=(self.max_length, 1))
-        time_use = np.random.randint(20, size=(self.max_length, 1))
+        time_use = np.random.randint(low=10, high=21, size=(self.max_length, 1))
         time_sum = np.sum(time_use)
         timeout = [[time_sum * (np.random.random_sample() * (1.2 - 0.8) + 0.8) / self.server_load] for i in range(self.max_length)]
         timeout = np.array(timeout)

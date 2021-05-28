@@ -22,8 +22,7 @@ net_arg.add_argument('--hidden_dim', type=int, default=128, help='actor LSTM num
 
 # Data
 data_arg = add_argument_group('Data')
-data_arg.add_argument('--batch_size', type=int, default=16
-                      , help='batch size')
+data_arg.add_argument('--batch_size', type=int, default=16, help='batch size')
 data_arg.add_argument('--input_dimension', type=int, default=7, help='data dimension')
 data_arg.add_argument('--max_length', type=int, default=80, help='number of task')  # this excludes depot
 data_arg.add_argument('--server_load', type=int, default=5, help='server load')  # this excludes depot
@@ -37,14 +36,9 @@ train_arg.add_argument('--lr1_start', type=float, default=0.0001, help='actor le
 train_arg.add_argument('--lr1_decay_step', type=int, default=500, help='lr1 decay step')
 train_arg.add_argument('--lr1_decay_rate', type=float, default=0.96, help='lr1 decay rate')
 
-train_arg.add_argument('--alpha', type=float, default=0.3, help='weight for load impact')
-train_arg.add_argument('--beta', type=float, default=0.3, help='weight for priority impact')
-train_arg.add_argument('--gama', type=float, default=0.3, help='weight for timeout impact')
-
-train_arg.add_argument('--alpha_c', type=float, default=0.25, help='weight for cpu')
-train_arg.add_argument('--alpha_o', type=float, default=0.25, help='weight for io')
-train_arg.add_argument('--alpha_b', type=float, default=0.25, help='weight for bandwidth')
-train_arg.add_argument('--alpha_m', type=float, default=0.25, help='weight for memory')
+train_arg.add_argument('--alpha', type=float, default=1, help='weight for load impact')
+train_arg.add_argument('--beta', type=float, default=1, help='weight for priority impact')
+train_arg.add_argument('--gama', type=float, default=1, help='weight for timeout impact')
 
 train_arg.add_argument('--temperature', type=float, default=3.0, help='pointer_net initial temperature')
 train_arg.add_argument('--C', type=float, default=10.0, help='pointer_net tan clipping')
@@ -57,11 +51,10 @@ misc_arg.add_argument('--inference_mode', type=str2bool, default=False,
                       help='switch to inference mode when model is trained')
 misc_arg.add_argument('--restore_model', type=str2bool, default=False, help='whether or not model is retrieved')
 
-misc_arg.add_argument('--save_to', type=str, default='speed1000/n20w100',
+misc_arg.add_argument('--save_to', type=str, default='./save/actor.ckpt',
                       help='saver sub directory')
-misc_arg.add_argument('--restore_from', type=str, default='speed1000/n20w100',
+misc_arg.add_argument('--restore_from', type=str, default='./save/actor.ckpt',
                       help='loader sub directory')
-misc_arg.add_argument('--log_dir', type=str, default='summary/test', help='summary writer log directory')
 
 
 def get_config():
@@ -91,5 +84,4 @@ def print_config():
               config.lr1_decay_rate)
     else:
         print('Testing Config:')
-    print('* Summary writer log dir:', config.log_dir)
     print('\n')

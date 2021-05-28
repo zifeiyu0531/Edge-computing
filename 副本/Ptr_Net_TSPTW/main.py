@@ -2,9 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import tensorflow as tf
-import time
 import numpy as np
-from numpy import *
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 
@@ -13,18 +11,6 @@ from Ptr_Net_TSPTW.actor import Actor
 from Ptr_Net_TSPTW.config import get_config, print_config
 from Ptr_Net_TSPTW.multy import do_multy
 from Ptr_Net_TSPTW.rand import do_rand
-
-
-# Model: Decoder inputs = Encoder outputs Critic design (state value function approximator) = RNN encoder last hidden
-# state (c) (parametric baseline ***) + 1 glimpse over (c) at memory states + 2 FFN layers (ReLu),
-# w/o moving_baseline (init_value = 7 for TSPTW20) Penalty: Discrete (counts) with beta = +3 for one constraint /
-# beta*sqrt(N) for N constraints violated (concave **0.5) No Regularization Decoder Glimpse = on Attention_g (mask -
-# current) Residual connections 01
-
-# NEW data generator (wrap config.py)
-# speed1000 model: n20w100
-# speed10 model: s10_k5_n20w100 (fine tuned w/ feasible kNN datagen)
-# Benchmark: Dumas n20w100 instances
 
 
 def main():
@@ -36,49 +22,72 @@ def main():
     print("Building graph...")
     actor = Actor(config)
 
+    # Saver to save & restore all the variables.
+    variables_to_save = [v for v in tf.global_variables() if 'Adam' not in v.name]
+    saver = tf.train.Saver(var_list=variables_to_save, keep_checkpoint_every_n_hours=1.0)
+
     predictions = []
     time_used = []
     task_priority = []
     ns_ = []
 
-    training_set = DataGenerator(config)
-    input_batch = training_set.train_batch()
-
     with tf.Session() as sess:
         # Run initialize op
         sess.run(tf.global_variables_initializer())
 
+        # Restore variables from disk.
+        if config.restore_model is True:
+            saver.restore(sess, config.restore_from)
+            print("Model restored.")
+
+        training_set = DataGenerator(config)
+
         # 训练
         if not config.inference_mode:
-
-            # Summary writer
-            writer = tf.summary.FileWriter(config.log_dir, sess.graph)
 
             print("Starting training...")
             for i in tqdm(range(config.nb_epoch)):
                 # Get feed dict
+                input_batch = training_set.train_batch()
                 feed = {actor.input_: input_batch}
                 # Forward pass & train step
 
-                result, time_use, task_priority_sum, ns_prob, summary, train_step1, train_step2 = sess.run(
-                    [actor.reward, actor.time_use, actor.task_priority_sum, actor.ns_prob, actor.merged,
+                result, time_use, task_priority_sum, ns_prob, _, _ = sess.run(
+                    [actor.reward, actor.time_use, actor.task_priority_sum, actor.ns_prob,
                      actor.train_step1, actor.train_step2],
                     feed_dict=feed)
 
-                time_use = time_use
-                ns_prob = ns_prob
-                result = time_use + task_priority_sum + ns_prob
-                reward_mean = np.mean(result)
-                time_mean = np.mean(time_use)
-                task_priority_mean = np.mean(task_priority_sum)
-                ns_mean = np.mean(ns_prob)
+                predictions.append(np.mean(time_use + task_priority_sum + ns_prob))
+                time_used.append(np.mean(time_use))
+                task_priority.append(np.mean(task_priority_sum))
+                ns_.append(np.mean(ns_prob))
 
-                predictions.append(reward_mean)
-                time_used.append(time_mean)
-                task_priority.append(task_priority_mean)
-                ns_.append(ns_mean)
+                if i % 100 == 0 and i != 0:
+                    print('after '+str(i)+' rounds training, reward: ' + str(predictions[-1]) + ' time: ' + str(time_used[-1]) + ' task_priority: ' + str(task_priority[-1]) + ' ns_prob: ' + str(ns_[-1]))
+
+                # # Save the variables to disk
+                # if i % 1000 == 0 and i != 0:
+                #     save_path = saver.save(sess, config.save_to)
+                #     print("Model saved in file: %s" % save_path)
 
             print("Training COMPLETED !")
+            # save_path = saver.save(sess, config.save_to)
+            # print("Model saved in file: %s" % save_path)
+
+        # 测试
+        else:
+            input_batch = training_set.train_batch()
+            feed = {actor.input_: input_batch}
+            print(feed)
+            result, time_use, task_priority_sum, ns_prob, _, _ = sess.run(
+                [actor.reward, actor.time_use, actor.task_priority_sum, actor.ns_prob,
+                 actor.train_step1, actor.train_step2],
+                feed_dict=feed)
+
+            print('reward: ', np.mean(result))
+            print('运行时间: ', np.mean(time_use))
+            print('优先级: ', np.mean(task_priority_sum))
+            print('超时率: ', np.mean(ns_prob))
 
     # 解决中文显示问题
     plt.rcParams['font.sans-serif'] = ['KaiTi']  # 指定默认字体
@@ -122,20 +131,20 @@ def main():
     print('gen_num:', config.gen_num)
     print('nb_epoch:', config.nb_epoch)
     print('ptr')
-    print('综合效果', mean(predictions[-10:]))
-    print('目标1：运行时间', mean(time_used[-10:]))
-    print('目标2：任务优先级', mean(task_priority[-10:]))
-    print('目标3：超时率', mean(ns_[-10:]))
+    print('综合效果', np.mean(predictions[-10:]))
+    print('目标1：运行时间', np.mean(time_used[-10:]))
+    print('目标2：任务优先级', np.mean(task_priority[-10:]))
+    print('目标3：超时率', np.mean(ns_[-10:]))
     print('greed')
-    print('综合效果', mean(greed_result[-10:]))
-    print('目标1：运行时间', mean(greed_1_result[-10:]))
-    print('目标2：任务优先级', mean(greed_2_result[-10:]))
-    print('目标3：超时率', mean(greed_3_result[-10:]))
+    print('综合效果', np.mean(greed_result[-10:]))
+    print('目标1：运行时间', np.mean(greed_1_result[-10:]))
+    print('目标2：任务优先级', np.mean(greed_2_result[-10:]))
+    print('目标3：超时率', np.mean(greed_3_result[-10:]))
     print('rand')
-    print('综合效果', mean(rand_result[-10:]))
-    print('目标1：运行时间', mean(rand_time_result[-10:]))
-    print('目标2：任务优先级', mean(rand_task_priority_result[-10:]))
-    print('目标3：超时率', mean(rand_ns_result[-10:]))
+    print('综合效果', np.mean(rand_result[-10:]))
+    print('目标1：运行时间', np.mean(rand_time_result[-10:]))
+    print('目标2：任务优先级', np.mean(rand_task_priority_result[-10:]))
+    print('目标3：超时率',np.mean(rand_ns_result[-10:]))
     print('multy')
     print('综合效果', np.mean(multy_result[-10:]))
     print('目标1：运行时间', np.mean(multy_1_result[-10:]))
