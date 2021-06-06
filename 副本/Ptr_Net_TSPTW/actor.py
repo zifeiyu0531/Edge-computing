@@ -177,35 +177,37 @@ class Actor(object):
             self.time_used = [tf.constant(0, dtype=tf.float32)] * self.batch_size  # [batch_size]  # 已用时间
             self.timeout_count = [tf.constant(0, dtype=tf.float32)] * self.batch_size  # [batch_size]  # 超时数
 
-            self.server_run_map = None  # 服务器正在运行的任务列表
-            self.server_remain = tf.constant([1, 1, 1, 1], dtype=tf.float32)  # 服务器剩余容量
-            self.punish = tf.constant(0, dtype=tf.float32)
-            # 将任务依次载入服务器
-            for task_idx in range(self.max_length):
-                self.task = self.ordered_input_[task_idx] # [input_dimension]
-                self.need = self.task[:4]
-                time_out = self.task[5]
-                time_need = self.task[6]
-                self.task = tf.stack([self.task])
+            for self.batch_idx, instance in enumerate(tf.unstack(self.ordered_input_)):
+                self.instance = instance  # self.batch_idx:[max_length, input_dimension]
+                self.server_run_map = None  # 服务器正在运行的任务列表
+                self.server_remain = tf.constant([1, 1, 1, 1], dtype=tf.float32)  # 服务器剩余容量
+                self.punish = tf.constant(0, dtype=tf.float32)
+                # 将任务依次载入服务器
+                for task_idx, task in enumerate(tf.unstack(self.instance)):
+                    self.task = task  # [input_dimension]
+                    self.need = self.task[:4]
+                    time_out = self.task[5]
+                    time_need = self.task[6]
+                    self.task = tf.stack([self.task])
 
-                if task_idx == 0:
-                    self.server_run_map = self.task
-                    self.server_remain -= self.need
-                    continue
+                    if task_idx == 0:
+                        self.server_run_map = self.task
+                        self.server_remain -= self.need
+                        continue
 
-                self.timeout_count[self.batch_idx], self.time_used[
-                    self.batch_idx], self.server_remain, self.need, self.server_run_map, self.task, self.punish = tf.cond(
-                    tf.less(time_out, self.time_used[self.batch_idx] + time_need),
-                    lambda: self.f1(self.timeout_count[self.batch_idx], self.time_used[self.batch_idx],
-                                    self.server_remain, self.need, self.server_run_map, self.task, self.punish),
-                    lambda: self.f2(self.timeout_count[self.batch_idx], self.time_used[self.batch_idx],
-                                    self.server_remain, self.need, self.server_run_map, self.task, self.punish))
+                    self.timeout_count[self.batch_idx], self.time_used[
+                        self.batch_idx], self.server_remain, self.need, self.server_run_map, self.task, self.punish = tf.cond(
+                        tf.less(time_out, self.time_used[self.batch_idx] + time_need),
+                        lambda: self.f1(self.timeout_count[self.batch_idx], self.time_used[self.batch_idx],
+                                        self.server_remain, self.need, self.server_run_map, self.task, self.punish),
+                        lambda: self.f2(self.timeout_count[self.batch_idx], self.time_used[self.batch_idx],
+                                        self.server_remain, self.need, self.server_run_map, self.task, self.punish))
 
             # 所有任务载入完成
             self.max_time = tf.reduce_max(self.server_run_map, axis=0)[-1]
             self.time_used[self.batch_idx] += self.max_time + self.punish  # 更新当前时间
 
-        self.time_use = tf.stack(self.time_used) / self.max_length  # 时间
+        self.time_use = tf.stack(self.time_used) / (self.max_length * self.server_load)  # 时间
         self.ns_prob = tf.stack(self.timeout_count) / self.max_length  # 超时率
 
         priority_max = tf.reduce_max(task_priority, axis=0)  # 求每组样本的λ最大值
@@ -219,37 +221,36 @@ class Actor(object):
         self.reward_3 = self.gama * tf.cast(self.ns_prob, tf.float32)  # 超时率
         self.reward = self.reward_1 + self.reward_2 + self.reward_3
 
+    def build_optim(self):
+        # Update moving_mean and moving_variance for batch normalization layers
+        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+        with tf.control_dependencies(update_ops):
+            with tf.name_scope('reinforce'):
+                # Actor learning rate
+                self.lr1 = tf.train.exponential_decay(self.lr1_start, self.global_step, self.lr1_decay_step,
+                                                      self.lr1_decay_rate, staircase=False, name="learning_rate1")
+                # Optimizer
+                self.opt1 = tf.train.AdamOptimizer(learning_rate=self.lr1, beta1=0.9, beta2=0.99, epsilon=0.0000001)
+                # Discounted reward
+                # 实际reward和预测的reward的差值
+                self.reward_baseline = tf.stop_gradient(self.reward - self.critic.predictions)  # [Batch size, 1]
+                # Loss
+                # 最小化这个差值
+                self.loss1 = tf.reduce_mean(self.reward_baseline * self.log_softmax, 0)
+                # Minimize step
+                gvs = self.opt1.compute_gradients(self.loss1)
+                capped_gvs = [(tf.clip_by_norm(grad, 1.), var) for grad, var in gvs if grad is not None]  # L2 clip
+                self.train_step1 = self.opt1.apply_gradients(capped_gvs, global_step=self.global_step)
 
-def build_optim(self):
-    # Update moving_mean and moving_variance for batch normalization layers
-    update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-    with tf.control_dependencies(update_ops):
-        with tf.name_scope('reinforce'):
-            # Actor learning rate
-            self.lr1 = tf.train.exponential_decay(self.lr1_start, self.global_step, self.lr1_decay_step,
-                                                  self.lr1_decay_rate, staircase=False, name="learning_rate1")
-            # Optimizer
-            self.opt1 = tf.train.AdamOptimizer(learning_rate=self.lr1, beta1=0.9, beta2=0.99, epsilon=0.0000001)
-            # Discounted reward
-            # 实际reward和预测的reward的差值
-            self.reward_baseline = tf.stop_gradient(self.reward - self.critic.predictions)  # [Batch size, 1]
-            # Loss
-            # 最小化这个差值
-            self.loss1 = tf.reduce_mean(self.reward_baseline * self.log_softmax, 0)
-            # Minimize step
-            gvs = self.opt1.compute_gradients(self.loss1)
-            capped_gvs = [(tf.clip_by_norm(grad, 1.), var) for grad, var in gvs if grad is not None]  # L2 clip
-            self.train_step1 = self.opt1.apply_gradients(capped_gvs, global_step=self.global_step)
-
-        with tf.name_scope('state_value'):
-            # Critic learning rate
-            self.lr2 = tf.train.exponential_decay(self.lr2_start, self.global_step2, self.lr2_decay_step,
-                                                  self.lr2_decay_rate, staircase=False, name="learning_rate1")
-            # Optimizer
-            self.opt2 = tf.train.AdamOptimizer(learning_rate=self.lr2, beta1=0.9, beta2=0.99, epsilon=0.0000001)
-            # Loss
-            self.loss2 = tf.losses.mean_squared_error(self.reward, self.critic.predictions, weights=1.0)
-            # Minimize step
-            gvs2 = self.opt2.compute_gradients(self.loss2)
-            capped_gvs2 = [(tf.clip_by_norm(grad, 1.), var) for grad, var in gvs2 if grad is not None]
-            self.train_step2 = self.opt1.apply_gradients(capped_gvs2, global_step=self.global_step2)
+            with tf.name_scope('state_value'):
+                # Critic learning rate
+                self.lr2 = tf.train.exponential_decay(self.lr2_start, self.global_step2, self.lr2_decay_step,
+                                                      self.lr2_decay_rate, staircase=False, name="learning_rate1")
+                # Optimizer
+                self.opt2 = tf.train.AdamOptimizer(learning_rate=self.lr2, beta1=0.9, beta2=0.99, epsilon=0.0000001)
+                # Loss
+                self.loss2 = tf.losses.mean_squared_error(self.reward, self.critic.predictions, weights=1.0)
+                # Minimize step
+                gvs2 = self.opt2.compute_gradients(self.loss2)
+                capped_gvs2 = [(tf.clip_by_norm(grad, 1.), var) for grad, var in gvs2 if grad is not None]
+                self.train_step2 = self.opt1.apply_gradients(capped_gvs2, global_step=self.global_step2)

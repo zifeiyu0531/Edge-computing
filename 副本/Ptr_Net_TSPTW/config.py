@@ -24,7 +24,7 @@ net_arg.add_argument('--hidden_dim', type=int, default=128, help='actor LSTM num
 data_arg = add_argument_group('Data')
 data_arg.add_argument('--batch_size', type=int, default=16, help='batch size')
 data_arg.add_argument('--input_dimension', type=int, default=7, help='data dimension')
-data_arg.add_argument('--max_length', type=int, default=80, help='number of task')  # this excludes depot
+data_arg.add_argument('--max_length', type=int, default=60, help='number of task')  # this excludes depot
 data_arg.add_argument('--server_load', type=int, default=5, help='server load')  # this excludes depot
 data_arg.add_argument('--dir_', type=str, default='n20w100', help='Dumas benchmarch instances')
 

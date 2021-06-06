@@ -52,7 +52,7 @@ def main():
                 feed = {actor.input_: input_batch}
                 # Forward pass & train step
 
-                result, time_use, task_priority_sum, ns_prob, _, _ = sess.run(
+                result, time_use, task_priority_sum, ns_prob, train_step1, train_step2 = sess.run(
                     [actor.reward, actor.time_use, actor.task_priority_sum, actor.ns_prob,
                      actor.train_step1, actor.train_step2],
                     feed_dict=feed)
@@ -123,33 +123,33 @@ def main():
     plt.legend()
     fig.show()
 
-    rand_result, rand_time_result, rand_task_priority_result, rand_ns_result = do_rand(input_batch, 0)
-    greed_result, greed_1_result, greed_2_result, greed_3_result = do_rand(input_batch, 1)
-    multy_result, multy_1_result, multy_2_result, multy_3_result = do_multy(input_batch)
-
-    print('task:', config.max_length)
-    print('gen_num:', config.gen_num)
-    print('nb_epoch:', config.nb_epoch)
-    print('ptr')
-    print('综合效果', np.mean(predictions[-10:]))
-    print('目标1：运行时间', np.mean(time_used[-10:]))
-    print('目标2：任务优先级', np.mean(task_priority[-10:]))
-    print('目标3：超时率', np.mean(ns_[-10:]))
-    print('greed')
-    print('综合效果', np.mean(greed_result[-10:]))
-    print('目标1：运行时间', np.mean(greed_1_result[-10:]))
-    print('目标2：任务优先级', np.mean(greed_2_result[-10:]))
-    print('目标3：超时率', np.mean(greed_3_result[-10:]))
-    print('rand')
-    print('综合效果', np.mean(rand_result[-10:]))
-    print('目标1：运行时间', np.mean(rand_time_result[-10:]))
-    print('目标2：任务优先级', np.mean(rand_task_priority_result[-10:]))
-    print('目标3：超时率',np.mean(rand_ns_result[-10:]))
-    print('multy')
-    print('综合效果', np.mean(multy_result[-10:]))
-    print('目标1：运行时间', np.mean(multy_1_result[-10:]))
-    print('目标2：任务优先级', np.mean(multy_2_result[-10:]))
-    print('目标3：超时率', np.mean(multy_3_result[-10:]))
+    # rand_result, rand_time_result, rand_task_priority_result, rand_ns_result = do_rand(input_batch, 0)
+    # greed_result, greed_1_result, greed_2_result, greed_3_result = do_rand(input_batch, 1)
+    # multy_result, multy_1_result, multy_2_result, multy_3_result = do_multy(input_batch)
+    #
+    # print('task:', config.max_length)
+    # print('gen_num:', config.gen_num)
+    # print('nb_epoch:', config.nb_epoch)
+    # print('ptr')
+    # print('综合效果', np.mean(predictions[-10:]))
+    # print('目标1：运行时间', np.mean(time_used[-10:]))
+    # print('目标2：任务优先级', np.mean(task_priority[-10:]))
+    # print('目标3：超时率', np.mean(ns_[-10:]))
+    # print('greed')
+    # print('综合效果', np.mean(greed_result[-10:]))
+    # print('目标1：运行时间', np.mean(greed_1_result[-10:]))
+    # print('目标2：任务优先级', np.mean(greed_2_result[-10:]))
+    # print('目标3：超时率', np.mean(greed_3_result[-10:]))
+    # print('rand')
+    # print('综合效果', np.mean(rand_result[-10:]))
+    # print('目标1：运行时间', np.mean(rand_time_result[-10:]))
+    # print('目标2：任务优先级', np.mean(rand_task_priority_result[-10:]))
+    # print('目标3：超时率',np.mean(rand_ns_result[-10:]))
+    # print('multy')
+    # print('综合效果', np.mean(multy_result[-10:]))
+    # print('目标1：运行时间', np.mean(multy_1_result[-10:]))
+    # print('目标2：任务优先级', np.mean(multy_2_result[-10:]))
+    # print('目标3：超时率', np.mean(multy_3_result[-10:]))
 
 
 if __name__ == "__main__":

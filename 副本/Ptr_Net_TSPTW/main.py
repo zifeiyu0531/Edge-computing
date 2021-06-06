@@ -52,12 +52,12 @@ def main():
                 feed = {actor.input_: input_batch}
                 # Forward pass & train step
 
-                result, time_use, task_priority_sum, ns_prob, _, _ = sess.run(
+                result, time_use, task_priority_sum, ns_prob, train_step1, train_step2 = sess.run(
                     [actor.reward, actor.time_use, actor.task_priority_sum, actor.ns_prob,
                      actor.train_step1, actor.train_step2],
                     feed_dict=feed)
 
-                predictions.append(np.mean(time_use + task_priority_sum + ns_prob))
+                predictions.append(np.mean(result))
                 time_used.append(np.mean(time_use))
                 task_priority.append(np.mean(task_priority_sum))
                 ns_.append(np.mean(ns_prob))
